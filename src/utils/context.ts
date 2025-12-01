@@ -1,5 +1,6 @@
-import * as vscode from 'vscode';
 import * as path from 'path';
+
+import * as vscode from 'vscode';
 
 /**
  * Cached user directory path (computed once during activation)
@@ -12,9 +13,9 @@ let userDirPath: string | undefined;
  * Extracts and caches only what we need (userDirPath)
  */
 export function initializeContext(context: vscode.ExtensionContext): void {
-    const globalStoragePath = context.globalStorageUri.fsPath;
-    // Go up 3 levels: globalStorage -> User -> [app directory]
-    userDirPath = path.dirname(path.dirname(path.dirname(globalStoragePath)));
+  const globalStoragePath = context.globalStorageUri.fsPath;
+  // Go up 3 levels: globalStorage -> User -> [app directory]
+  userDirPath = path.dirname(path.dirname(path.dirname(globalStoragePath)));
 }
 
 /**
@@ -22,8 +23,8 @@ export function initializeContext(context: vscode.ExtensionContext): void {
  * @throws Error if context has not been initialized
  */
 export function getUserDirPath(): string {
-    if (!userDirPath) {
-        throw new Error('Context not initialized. Call initializeContext() first.');
-    }
-    return userDirPath;
+  if (!userDirPath) {
+    throw new Error('Context not initialized. Call initializeContext() first.');
+  }
+  return userDirPath;
 }

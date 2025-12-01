@@ -2,6 +2,24 @@
 
 All notable changes to the "Cursor Enterprise Stats" extension will be documented in this file.
 
+## [1.0.1] - 2025-12-01
+
+### Changed
+- **ESLint**: Migrated to `@gooddata/eslint-config` for stricter, enterprise-grade linting
+- **Code Style**: Applied 2-space indentation and consistent formatting via Prettier
+- **Interfaces**: Renamed to I-prefix convention (`IUsageSummaryResponse`, `IJwtPayload`)
+- **Logging**: Replaced `console.log/error` with `process.stdout/stderr.write` for cleaner output
+
+### Improved
+- **Database Module**: Refactored `getCursorTokenFromDB` into smaller, focused helper functions to reduce cognitive complexity
+- **Error Handling**: Use `isAxiosError()` helper for type-safe Axios error handling
+- **Promise Handling**: Added `void` operator for fire-and-forget promises
+
+### CI/CD
+- Added `ci.yml` workflow for linting and type-checking on PRs and pushes to `main`
+- Updated `release.yml` to run lint and type-check before packaging
+- Enabled npm caching and added build timeouts
+
 ## [1.0.0] - 2025-12-01
 
 ### Initial Release
