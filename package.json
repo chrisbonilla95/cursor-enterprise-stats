@@ -1,0 +1,107 @@
+{
+  "name": "cursor-enterprise-stats",
+  "displayName": "Cursor Enterprise Stats",
+  "description": "A Cursor extension for monitoring enterprise usage.",
+  "version": "1.0.0",
+  "publisher": "chrisbonilla95",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrisbonilla95/cursor-enterprise-stats"
+  },
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "keywords": [
+    "cursor",
+    "cursor.com",
+    "cursor-ide",
+    "enterprise",
+    "statistics",
+    "monitoring",
+    "usage",
+    "analytics"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cursor-enterprise-stats.refresh",
+        "title": "Cursor Enterprise Stats: Refresh Statistics",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "cursor-enterprise-stats.openSettings",
+        "title": "Cursor Enterprise Stats: Open Settings",
+        "icon": "$(gear)"
+      }
+    ],
+    "configuration": [
+      {
+        "title": "Cursor Enterprise Stats",
+        "properties": {
+          "cursorEnterpriseStats.enableLogging": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable detailed logging for debugging purposes.",
+            "scope": "window"
+          },
+          "cursorEnterpriseStats.customDatabasePath": {
+            "type": "string",
+            "default": "",
+            "description": "Custom path to the Cursor database file. Leave empty to use default location.",
+            "scope": "window"
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && node esbuild.mjs",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.mjs --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && node esbuild.mjs --production",
+    "check-types": "tsc --noEmit",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "vscode-test",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\""
+  },
+  "devDependencies": {
+    "@types/mocha": "10.0.10",
+    "@types/node": "22.15.20",
+    "@types/sql.js": "1.4.9",
+    "@types/vscode": "1.96.0",
+    "@typescript-eslint/eslint-plugin": "8.32.1",
+    "@typescript-eslint/parser": "8.32.1",
+    "@vscode/test-cli": "0.0.10",
+    "esbuild": "0.24.0",
+    "eslint": "9.27.0",
+    "npm-run-all": "4.1.5",
+    "typescript": "5.8.3",
+    "prettier": "3.3.2"
+  },
+  "dependencies": {
+    "axios": "1.9.0",
+    "sql.js": "1.13.0"
+  },
+  "extensionKind": [
+    "ui"
+  ],
+  "prettier": {
+    "singleQuote": true,
+    "trailingComma": "all",
+    "printWidth": 100,
+    "tabWidth": 2,
+    "semi": true
+  }
+}

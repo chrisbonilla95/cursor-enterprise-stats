@@ -1,0 +1,27 @@
+# Build output
+out
+dist
+builds/
+*.vsix
+
+# Dependencies
+node_modules
+
+# Testing
+.vscode-test/
+
+# OS
+.DS_Store
+
+# Environment
+.env
+
+# Logs
+*.log
+
+# Editor
+.cursorignore
+CLAUDE.md
+
+# Lock file (optional - remove this line if you want to commit it)
+package-lock.json

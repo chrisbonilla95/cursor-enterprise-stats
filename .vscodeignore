@@ -1,0 +1,38 @@
+# Source files (bundled into out/extension.js)
+src/**
+**/*.ts
+
+# Build configuration
+.vscode/**
+.vscode-test/**
+.gitignore
+.cursorignore
+**/tsconfig.json
+**/.eslintrc.json
+**/eslint.config.mjs
+esbuild.mjs
+
+# Source maps (not needed in production)
+**/*.map
+
+# Build artifacts
+builds/**
+**/*.vsix
+
+# Git
+.git/**
+.github/**
+
+# Package files
+package-lock.json
+
+# Test files
+**/test/**
+**/*.test.js
+**/*.spec.js
+
+# Documentation (README is auto-included)
+CHANGELOG.md
+
+# Node modules (bundled, not needed)
+node_modules/**
