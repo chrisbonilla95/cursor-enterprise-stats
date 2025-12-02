@@ -2,6 +2,80 @@ import axios, { isAxiosError } from 'axios';
 
 import { log } from '../utils/logger.js';
 
+// Response type for /api/dashboard/get-me
+export interface IGetMeResponse {
+  authId: string;
+  userId: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  workosId: string;
+  teamId: number;
+  createdAt: string;
+  isEnterpriseUser: boolean;
+}
+
+// Leaderboard entry for tab completions
+export interface ITabLeaderboardEntry {
+  email: string;
+  user_id: number;
+  total_tab_accepts: number;
+  total_tab_lines_accepted: number;
+  total_tab_lines_suggested: number;
+  tab_line_acceptance_ratio: number;
+  tab_accept_ratio: number;
+  favorite_model: string;
+  rank: number;
+  profile_picture_url: string | null;
+}
+
+// Leaderboard entry for composer/agent
+export interface IComposerLeaderboardEntry {
+  email: string;
+  user_id: number;
+  total_diff_accepts: number;
+  total_composer_lines_accepted: number;
+  total_composer_lines_suggested: number;
+  composer_line_acceptance_ratio: number;
+  favorite_model: string;
+  rank: number;
+  profile_picture_url: string | null;
+}
+
+// Full leaderboard response
+export interface ILeaderboardResponse {
+  tab_leaderboard: {
+    data: ITabLeaderboardEntry[];
+    total_users: number;
+  };
+  composer_leaderboard: {
+    data: IComposerLeaderboardEntry[];
+    total_users: number;
+  };
+}
+
+// Leaderboard sort options
+export type LeaderboardSortBy = 'composer_lines' | 'composer_accepts' | 'tab_accepts';
+
+// Combined leaderboard data with all rankings
+export interface ILeaderboardData {
+  // Agent Lines of Code (primary)
+  agentLines: {
+    userEntry: IComposerLeaderboardEntry | null;
+    totalUsers: number;
+  };
+  // Accepted Diffs
+  acceptedDiffs: {
+    userEntry: IComposerLeaderboardEntry | null;
+    totalUsers: number;
+  };
+  // Tab Completions
+  tabCompletions: {
+    userEntry: ITabLeaderboardEntry | null;
+    totalUsers: number;
+  };
+}
+
 // Response type for the usage-summary API
 export interface IUsageSummaryResponse {
   billingCycleStart: string;
@@ -108,4 +182,151 @@ export function calculateIndividualContribution(
     return 0;
   }
   return (individualUsed / pooledUsed) * 100;
+}
+
+/**
+ * Format a Date to YYYY-MM-DD string for API calls
+ */
+function formatDateForAPI(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
+/**
+ * Get date range for leaderboard (last 30 days)
+ */
+function getLeaderboardDateRange(): { startDate: string; endDate: string } {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 30);
+
+  return {
+    startDate: formatDateForAPI(startDate),
+    endDate: formatDateForAPI(endDate),
+  };
+}
+
+/**
+ * Fetch current user info from the Cursor API
+ */
+export async function fetchUserInfo(token: string): Promise<IGetMeResponse> {
+  try {
+    log('[API] Fetching user info...');
+
+    const response = await axios.get<IGetMeResponse>('https://cursor.com/api/dashboard/get-me', {
+      headers: getBrowserHeaders(token),
+    });
+
+    log(`[API] User info fetched: ${response.data.email}, teamId: ${response.data.teamId}`);
+
+    return response.data;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    log('[API] Error fetching user info: ' + message, true);
+
+    if (isAxiosError(error) && error.response) {
+      log(
+        `[API] Error details: status=${error.response.status}, data=${JSON.stringify(error.response.data)}`,
+        true,
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * Fetch leaderboard data from the Cursor API
+ */
+async function fetchLeaderboardWithSort(
+  token: string,
+  teamId: number,
+  userEmail: string,
+  sortBy: LeaderboardSortBy,
+): Promise<ILeaderboardResponse> {
+  try {
+    log(`[API] Fetching leaderboard (sortBy: ${sortBy})...`);
+
+    const { startDate, endDate } = getLeaderboardDateRange();
+    const params = new URLSearchParams({
+      startDate,
+      endDate,
+      pageSize: '10',
+      teamId: teamId.toString(),
+      user: userEmail,
+      leaderboardSortBy: sortBy,
+    });
+
+    const response = await axios.get<ILeaderboardResponse>(
+      `https://cursor.com/api/v2/analytics/team/leaderboard?${params.toString()}`,
+      {
+        headers: getBrowserHeaders(token),
+      },
+    );
+
+    log(
+      `[API] Leaderboard fetched (${sortBy}): ${response.data.composer_leaderboard.total_users} users`,
+    );
+
+    return response.data;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    log(`[API] Error fetching leaderboard (${sortBy}): ` + message, true);
+
+    if (isAxiosError(error) && error.response) {
+      log(
+        `[API] Error details: status=${error.response.status}, data=${JSON.stringify(error.response.data)}`,
+        true,
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * Find user entry in composer leaderboard by email
+ */
+function findComposerEntry(
+  data: ILeaderboardResponse,
+  email: string,
+): IComposerLeaderboardEntry | null {
+  return data.composer_leaderboard.data.find((entry) => entry.email === email) ?? null;
+}
+
+/**
+ * Find user entry in tab leaderboard by email
+ */
+function findTabEntry(data: ILeaderboardResponse, email: string): ITabLeaderboardEntry | null {
+  return data.tab_leaderboard.data.find((entry) => entry.email === email) ?? null;
+}
+
+/**
+ * Fetch all leaderboard data with different sort options to get accurate rankings
+ */
+export async function fetchAllLeaderboards(
+  token: string,
+  teamId: number,
+  userEmail: string,
+): Promise<ILeaderboardData> {
+  log('[API] Fetching all leaderboards...');
+
+  // Fetch all three leaderboards in parallel
+  const [agentLinesData, acceptedDiffsData, tabCompletionsData] = await Promise.all([
+    fetchLeaderboardWithSort(token, teamId, userEmail, 'composer_lines'),
+    fetchLeaderboardWithSort(token, teamId, userEmail, 'composer_accepts'),
+    fetchLeaderboardWithSort(token, teamId, userEmail, 'tab_accepts'),
+  ]);
+
+  return {
+    agentLines: {
+      userEntry: findComposerEntry(agentLinesData, userEmail),
+      totalUsers: agentLinesData.composer_leaderboard.total_users,
+    },
+    acceptedDiffs: {
+      userEntry: findComposerEntry(acceptedDiffsData, userEmail),
+      totalUsers: acceptedDiffsData.composer_leaderboard.total_users,
+    },
+    tabCompletions: {
+      userEntry: findTabEntry(tabCompletionsData, userEmail),
+      totalUsers: tabCompletionsData.tab_leaderboard.total_users,
+    },
+  };
 }

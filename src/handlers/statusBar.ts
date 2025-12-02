@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 
 import {
+  type IGetMeResponse,
+  type ILeaderboardData,
   type IUsageSummaryResponse,
   calculateIndividualContribution,
   formatCentsToDollars,
@@ -31,26 +33,94 @@ function formatFullDateTime(dateString: string): string {
   });
 }
 
+// Configuration type for rank display
+type RankDisplayOption = 'agentLines' | 'acceptedDiffs' | 'tabCompletions';
+
+/**
+ * Format large numbers with commas (e.g., 55472 to "55,472")
+ */
+function formatNumber(num: number): string {
+  return num.toLocaleString('en-US');
+}
+
+/**
+ * Format a ratio as percentage (e.g., 0.5568 to "55.7%")
+ */
+function formatPercent(ratio: number): string {
+  return (ratio * 100).toFixed(1) + '%';
+}
+
+/**
+ * Get the configured rank display option
+ */
+function getRankDisplayOption(): RankDisplayOption {
+  const config = vscode.workspace.getConfiguration('cursorEnterpriseStats');
+  return config.get<RankDisplayOption>('statusBarRankDisplay') ?? 'agentLines';
+}
+
+/**
+ * Build the rank display string for the status bar
+ */
+function buildRankDisplay(leaderboardData: ILeaderboardData | null): string {
+  if (!leaderboardData) {
+    return '';
+  }
+
+  const displayOption = getRankDisplayOption();
+
+  if (displayOption === 'agentLines') {
+    const entry = leaderboardData.agentLines.userEntry;
+    if (entry) {
+      return ` • LoC #${entry.rank}`;
+    }
+  }
+
+  if (displayOption === 'acceptedDiffs') {
+    const entry = leaderboardData.acceptedDiffs.userEntry;
+    if (entry) {
+      return ` • AD #${entry.rank}`;
+    }
+  }
+
+  if (displayOption === 'tabCompletions') {
+    const entry = leaderboardData.tabCompletions.userEntry;
+    if (entry) {
+      return ` • TC #${entry.rank}`;
+    }
+  }
+
+  return '';
+}
+
 /**
  * Update the status bar with usage summary data
  */
-export function updateStatusBar(data: IUsageSummaryResponse): void {
+export function updateStatusBar(
+  data: IUsageSummaryResponse,
+  leaderboardData: ILeaderboardData | null,
+  userInfo: IGetMeResponse | null,
+): void {
   const individualUsed = data.individualUsage.overall.used;
   const formattedUsage = formatCentsToDollars(individualUsed);
+  const rankDisplay = buildRankDisplay(leaderboardData);
 
-  // Set the status bar text
-  statusBarItem.text = `$(pulse) ${formattedUsage}`;
+  // Set the status bar text with rank
+  statusBarItem.text = `$(pulse) ${formattedUsage}${rankDisplay}`;
 
   // Create the tooltip
-  statusBarItem.tooltip = createTooltip(data);
+  statusBarItem.tooltip = createTooltip(data, leaderboardData, userInfo);
 
-  log(`[Status Bar] Updated: ${formattedUsage}`);
+  log(`[Status Bar] Updated: ${formattedUsage}${rankDisplay}`);
 }
 
 /**
  * Create a markdown tooltip with usage details
  */
-function createTooltip(data: IUsageSummaryResponse): vscode.MarkdownString {
+function createTooltip(
+  data: IUsageSummaryResponse,
+  leaderboardData: ILeaderboardData | null,
+  _userInfo: IGetMeResponse | null,
+): vscode.MarkdownString {
   const tooltip = new vscode.MarkdownString();
   tooltip.isTrusted = true;
   tooltip.supportHtml = true;
@@ -99,6 +169,54 @@ function createTooltip(data: IUsageSummaryResponse): vscode.MarkdownString {
     tooltip.appendMarkdown(
       `**Remaining:** ${formatCentsToDollars(pooledRemaining)} (${remainingPercent}%)\n\n`,
     );
+  }
+
+  // Leaderboard Stats (Last 30 Days)
+  if (leaderboardData) {
+    tooltip.appendMarkdown('---\n\n');
+    tooltip.appendMarkdown('### 🏆 Leaderboard (Last 30 Days)\n\n');
+
+    // Agent Lines of Code (PRIMARY)
+    const agentLines = leaderboardData.agentLines;
+    if (agentLines.userEntry) {
+      const entry = agentLines.userEntry;
+      tooltip.appendMarkdown('**Agent Lines of Code**\n\n');
+      tooltip.appendMarkdown(`🥇 Rank: **#${entry.rank}** of ${agentLines.totalUsers}\n\n`);
+      tooltip.appendMarkdown(
+        `Lines: ${formatNumber(entry.total_composer_lines_accepted)} accepted\n\n`,
+      );
+      tooltip.appendMarkdown(
+        `Acceptance: ${formatPercent(entry.composer_line_acceptance_ratio)}\n\n`,
+      );
+      tooltip.appendMarkdown(`Favorite Model: ${entry.favorite_model}\n\n`);
+    } else {
+      tooltip.appendMarkdown('**Agent Lines of Code:** Unranked\n\n');
+    }
+
+    // Accepted Diffs
+    const acceptedDiffs = leaderboardData.acceptedDiffs;
+    if (acceptedDiffs.userEntry) {
+      const entry = acceptedDiffs.userEntry;
+      tooltip.appendMarkdown('**Accepted Diffs**\n\n');
+      tooltip.appendMarkdown(`🥇 Rank: **#${entry.rank}** of ${acceptedDiffs.totalUsers}\n\n`);
+      tooltip.appendMarkdown(`Diffs: ${formatNumber(entry.total_diff_accepts)} accepted\n\n`);
+      tooltip.appendMarkdown(`Favorite Model: ${entry.favorite_model}\n\n`);
+    } else {
+      tooltip.appendMarkdown('**Accepted Diffs:** Unranked\n\n');
+    }
+
+    // Tab Completions
+    const tabCompletions = leaderboardData.tabCompletions;
+    if (tabCompletions.userEntry) {
+      const entry = tabCompletions.userEntry;
+      tooltip.appendMarkdown('**Tab Completions**\n\n');
+      tooltip.appendMarkdown(`🥇 Rank: **#${entry.rank}** of ${tabCompletions.totalUsers}\n\n`);
+      tooltip.appendMarkdown(`Lines: ${formatNumber(entry.total_tab_lines_accepted)} accepted\n\n`);
+      tooltip.appendMarkdown(`Acceptance: ${formatPercent(entry.tab_line_acceptance_ratio)}\n\n`);
+      tooltip.appendMarkdown(`Favorite Model: ${entry.favorite_model}\n\n`);
+    } else {
+      tooltip.appendMarkdown('**Tab Completions:** Unranked\n\n');
+    }
   }
 
   // Footer with last updated time

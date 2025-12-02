@@ -2,6 +2,30 @@
 
 All notable changes to the "Cursor Enterprise Stats" extension will be documented in this file.
 
+## [1.1.0] - 2025-12-02
+
+### Added
+- **Leaderboard Integration**: Display your rank in the status bar alongside usage (e.g., "$314.71 • LoC #5")
+- **Leaderboard Tooltip**: Detailed stats for last 30 days including:
+  - Agent Lines of Code: rank, lines accepted, acceptance ratio, favorite model
+  - Accepted Diffs: rank, total diffs accepted, favorite model
+  - Tab Completions: rank, lines accepted, acceptance ratio, favorite model
+- **Configurable Rank Display**: New setting `cursorEnterpriseStats.statusBarRankDisplay` to choose which leaderboard rank to show:
+  - `agentLines` (default) - Agent Lines of Code rank
+  - `acceptedDiffs` - Accepted Diffs rank
+  - `tabCompletions` - Tab Completions rank
+- **Local VSIX Packaging**: New `npm run package:vsix` script for creating local .vsix packages
+
+### Improved
+- **Performance**: Fetch usage summary and leaderboard data in parallel
+- **Caching**: Cache user info, usage data, and leaderboard data to reduce API calls
+- **Settings Reactivity**: Status bar updates immediately when rank display setting changes (no refresh needed)
+
+### Technical
+- Added `fetchUserInfo()` for `/api/dashboard/get-me` endpoint
+- Added `fetchAllLeaderboards()` for team leaderboard data with all sort options
+- Added `@vscode/vsce` dev dependency for extension packaging
+
 ## [1.0.1] - 2025-12-01
 
 ### Changed

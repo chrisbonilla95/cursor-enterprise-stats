@@ -6,7 +6,14 @@ import {
   showLoading,
   updateStatusBar,
 } from './handlers/statusBar.js';
-import { fetchUsageSummary } from './services/api.js';
+import {
+  type IGetMeResponse,
+  type ILeaderboardData,
+  type IUsageSummaryResponse,
+  fetchAllLeaderboards,
+  fetchUsageSummary,
+  fetchUserInfo,
+} from './services/api.js';
 import { getCursorTokenFromDB } from './services/database.js';
 import { initializeContext } from './utils/context.js';
 import { initializeLogging, log } from './utils/logger.js';
@@ -14,6 +21,11 @@ import { initializeLogging, log } from './utils/logger.js';
 let statusBarItem: vscode.StatusBarItem;
 let refreshInterval: NodeJS.Timeout | undefined;
 let isRefreshing = false;
+
+// Cached data for re-rendering without API calls
+let cachedUserInfo: IGetMeResponse | null = null;
+let cachedUsageData: IUsageSummaryResponse | null = null;
+let cachedLeaderboardData: ILeaderboardData | null = null;
 
 // Default refresh interval: 60 seconds
 const REFRESH_INTERVAL_MS = 60 * 1000;
@@ -41,8 +53,25 @@ async function refreshStats(): Promise<void> {
       return;
     }
 
-    const usageData = await fetchUsageSummary(token);
-    updateStatusBar(usageData);
+    // Get user info (from cache or fetch)
+    if (!cachedUserInfo) {
+      log('[Stats] Fetching user info (not cached)...');
+      cachedUserInfo = await fetchUserInfo(token);
+    }
+
+    // Fetch usage summary and leaderboard data in parallel
+    const [usageData, leaderboardData] = await Promise.all([
+      fetchUsageSummary(token),
+      cachedUserInfo.isEnterpriseUser && cachedUserInfo.teamId
+        ? fetchAllLeaderboards(token, cachedUserInfo.teamId, cachedUserInfo.email)
+        : Promise.resolve(null),
+    ]);
+
+    // Cache the data for re-rendering on settings change
+    cachedUsageData = usageData;
+    cachedLeaderboardData = leaderboardData;
+
+    updateStatusBar(usageData, leaderboardData, cachedUserInfo);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to fetch usage data';
     log('[Stats] Error refreshing stats: ' + message, true);
@@ -125,8 +154,25 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     });
 
+    // Add configuration change listener to update status bar immediately
+    const configListener = vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('cursorEnterpriseStats.statusBarRankDisplay')) {
+        log('[Config] Rank display setting changed, updating status bar...');
+        // Re-render status bar with cached data (no API call needed)
+        if (cachedUsageData) {
+          updateStatusBar(cachedUsageData, cachedLeaderboardData, cachedUserInfo);
+        }
+      }
+    });
+
     // Register subscriptions
-    context.subscriptions.push(statusBarItem, refreshCommand, settingsCommand, focusListener);
+    context.subscriptions.push(
+      statusBarItem,
+      refreshCommand,
+      settingsCommand,
+      focusListener,
+      configListener,
+    );
 
     // Start refresh interval and do initial fetch
     startRefreshInterval();
