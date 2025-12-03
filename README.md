@@ -8,10 +8,11 @@
 
 ## ✨ Features
 
-- 📊 **Status Bar** - Shows your individual usage in dollars
+- 📊 **Status Bar** - Shows your individual usage in dollars with leaderboard rank (e.g., "$314.71 • LoC #5")
 - 📅 **Billing Cycle** - Start and end dates with times (localized to your timezone)
-- 👤 **Individual Usage** - Your personal usage and contribution percentage
+- 👤 **Individual Usage** - Your personal usage, contribution percentage, and favorite AI model
 - 👥 **Team Pooled Usage** - Limit, used, and remaining with percentages
+- 🏆 **Leaderboard Stats** - Configurable date range rankings for Agent Lines, Accepted Diffs, and Tab Completions
 - 🔄 **Auto-refresh** - Updates every 60 seconds
 
 ## ⚙️ Configuration
@@ -20,6 +21,9 @@
 |---------|-------------|---------|
 | `cursorEnterpriseStats.enableLogging` | Enable detailed logging for debugging | `true` |
 | `cursorEnterpriseStats.customDatabasePath` | Custom path to Cursor database file | `""` |
+| `cursorEnterpriseStats.enableLeaderboard` | Enable leaderboard stats, rank display, and favorite model | `true` |
+| `cursorEnterpriseStats.leaderboardDateRange` | Number of days for leaderboard stats (data available for Cursor v1.5+) | `30` |
+| `cursorEnterpriseStats.statusBarRankDisplay` | Which leaderboard rank to show: `agentLines`, `acceptedDiffs`, or `tabCompletions` | `agentLines` |
 
 ## 🔧 Commands
 

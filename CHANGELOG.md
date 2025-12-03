@@ -2,14 +2,27 @@
 
 All notable changes to the "Cursor Enterprise Stats" extension will be documented in this file.
 
+## [1.1.1] - 2025-12-03
+
+### Added
+- **Leaderboard Toggle**: New setting `cursorEnterpriseStats.enableLeaderboard` to disable leaderboard stats (enabled by default)
+- **Configurable Date Range**: New setting `cursorEnterpriseStats.leaderboardDateRange` to customize leaderboard time period (default: 30 days). Note: Data is only available for users on Cursor v1.5+ (Late August 2025)
+
+### Improved
+- **Favorite Model**: Now displayed once under Individual Usage instead of repeated in each leaderboard section
+- **Leaderboard Date Range Display**: Shows the actual date range in tooltip (e.g., "📅 11/3 - 12/3"), formatted in user's locale
+- **Fast Retry on Sign-in**: When not signed in, retries every 1 second for up to 60 seconds to quickly detect when token becomes available
+- **Null-safe Leaderboards**: Gracefully handles missing leaderboard sections when user has 0 activity
+
 ## [1.1.0] - 2025-12-02
 
 ### Added
 - **Leaderboard Integration**: Display your rank in the status bar alongside usage (e.g., "$314.71 • LoC #5")
 - **Leaderboard Tooltip**: Detailed stats for last 30 days including:
-  - Agent Lines of Code: rank, lines accepted, acceptance ratio, favorite model
-  - Accepted Diffs: rank, total diffs accepted, favorite model
-  - Tab Completions: rank, lines accepted, acceptance ratio, favorite model
+  - Agent Lines of Code: rank, lines accepted, acceptance ratio
+  - Accepted Diffs: rank, total diffs accepted
+  - Tab Completions: rank, lines accepted, acceptance ratio
+- **Favorite Model**: Shows your most-used AI model under Individual Usage
 - **Configurable Rank Display**: New setting `cursorEnterpriseStats.statusBarRankDisplay` to choose which leaderboard rank to show:
   - `agentLines` (default) - Agent Lines of Code rank
   - `acceptedDiffs` - Accepted Diffs rank

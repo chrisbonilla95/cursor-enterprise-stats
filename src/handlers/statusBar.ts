@@ -51,11 +51,69 @@ function formatPercent(ratio: number): string {
 }
 
 /**
+ * Format a date range in user's locale
+ * If same year, omits year from start date (e.g., "3.10 - 31.12" or "10/3 - 12/31")
+ * If different years, shows full dates (e.g., "3.12.2024 - 2.12.2025" or "12/3/2024 - 12/2/2025")
+ */
+function formatDateRange(days: number): string {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+
+  const sameYear = startDate.getFullYear() === endDate.getFullYear();
+
+  if (sameYear) {
+    // Short format without year
+    const startStr = startDate.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
+    const endStr = endDate.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
+    return `${startStr} - ${endStr}`;
+  } else {
+    // Full format with year
+    const startStr = startDate.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+    });
+    const endStr = endDate.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+    });
+    return `${startStr} - ${endStr}`;
+  }
+}
+
+/**
  * Get the configured rank display option
  */
 function getRankDisplayOption(): RankDisplayOption {
   const config = vscode.workspace.getConfiguration('cursorEnterpriseStats');
   return config.get<RankDisplayOption>('statusBarRankDisplay') ?? 'agentLines';
+}
+
+/**
+ * Get favorite model from the leaderboard matching the status bar display config
+ */
+function getFavoriteModel(leaderboardData: ILeaderboardData | null): string | null {
+  if (!leaderboardData) {
+    return null;
+  }
+
+  const displayOption = getRankDisplayOption();
+
+  if (displayOption === 'agentLines') {
+    return leaderboardData.agentLines.userEntry?.favorite_model ?? null;
+  }
+
+  if (displayOption === 'acceptedDiffs') {
+    return leaderboardData.acceptedDiffs.userEntry?.favorite_model ?? null;
+  }
+
+  if (displayOption === 'tabCompletions') {
+    return leaderboardData.tabCompletions.userEntry?.favorite_model ?? null;
+  }
+
+  return null;
 }
 
 /**
@@ -114,6 +172,60 @@ export function updateStatusBar(
 }
 
 /**
+ * Append leaderboard section to tooltip
+ */
+function appendLeaderboardSection(
+  tooltip: vscode.MarkdownString,
+  leaderboardData: ILeaderboardData,
+): void {
+  const config = vscode.workspace.getConfiguration('cursorEnterpriseStats');
+  const days = config.get<number>('leaderboardDateRange') ?? 30;
+  const dateRange = formatDateRange(days);
+  tooltip.appendMarkdown('---\n\n');
+  tooltip.appendMarkdown(`### 🏆 Leaderboard (Last ${days} Days)\n\n`);
+  tooltip.appendMarkdown(`📅 ${dateRange}\n\n`);
+
+  // Agent Lines of Code (PRIMARY)
+  const agentLines = leaderboardData.agentLines;
+  if (agentLines.userEntry) {
+    const entry = agentLines.userEntry;
+    tooltip.appendMarkdown('**Agent Lines of Code**\n\n');
+    tooltip.appendMarkdown(`🥇 Rank: **#${entry.rank}** of ${agentLines.totalUsers}\n\n`);
+    tooltip.appendMarkdown(
+      `Lines: ${formatNumber(entry.total_composer_lines_accepted)} accepted\n\n`,
+    );
+    tooltip.appendMarkdown(
+      `Acceptance: ${formatPercent(entry.composer_line_acceptance_ratio)}\n\n`,
+    );
+  } else {
+    tooltip.appendMarkdown('**Agent Lines of Code:** Unranked\n\n');
+  }
+
+  // Accepted Diffs
+  const acceptedDiffs = leaderboardData.acceptedDiffs;
+  if (acceptedDiffs.userEntry) {
+    const entry = acceptedDiffs.userEntry;
+    tooltip.appendMarkdown('**Accepted Diffs**\n\n');
+    tooltip.appendMarkdown(`🥇 Rank: **#${entry.rank}** of ${acceptedDiffs.totalUsers}\n\n`);
+    tooltip.appendMarkdown(`Diffs: ${formatNumber(entry.total_diff_accepts)} accepted\n\n`);
+  } else {
+    tooltip.appendMarkdown('**Accepted Diffs:** Unranked\n\n');
+  }
+
+  // Tab Completions
+  const tabCompletions = leaderboardData.tabCompletions;
+  if (tabCompletions.userEntry) {
+    const entry = tabCompletions.userEntry;
+    tooltip.appendMarkdown('**Tab Completions**\n\n');
+    tooltip.appendMarkdown(`🥇 Rank: **#${entry.rank}** of ${tabCompletions.totalUsers}\n\n`);
+    tooltip.appendMarkdown(`Lines: ${formatNumber(entry.total_tab_lines_accepted)} accepted\n\n`);
+    tooltip.appendMarkdown(`Acceptance: ${formatPercent(entry.tab_line_acceptance_ratio)}\n\n`);
+  } else {
+    tooltip.appendMarkdown('**Tab Completions:** Unranked\n\n');
+  }
+}
+
+/**
  * Create a markdown tooltip with usage details
  */
 function createTooltip(
@@ -150,6 +262,12 @@ function createTooltip(
     );
   }
 
+  // Show favorite model (from whichever leaderboard is configured for status bar)
+  const favoriteModel = getFavoriteModel(leaderboardData);
+  if (favoriteModel) {
+    tooltip.appendMarkdown(`**Favorite Model:** ${favoriteModel}\n\n`);
+  }
+
   // Pooled Usage (Team)
   if (data.teamUsage?.pooled?.enabled) {
     const pooled = data.teamUsage.pooled;
@@ -171,52 +289,9 @@ function createTooltip(
     );
   }
 
-  // Leaderboard Stats (Last 30 Days)
+  // Leaderboard Stats
   if (leaderboardData) {
-    tooltip.appendMarkdown('---\n\n');
-    tooltip.appendMarkdown('### 🏆 Leaderboard (Last 30 Days)\n\n');
-
-    // Agent Lines of Code (PRIMARY)
-    const agentLines = leaderboardData.agentLines;
-    if (agentLines.userEntry) {
-      const entry = agentLines.userEntry;
-      tooltip.appendMarkdown('**Agent Lines of Code**\n\n');
-      tooltip.appendMarkdown(`🥇 Rank: **#${entry.rank}** of ${agentLines.totalUsers}\n\n`);
-      tooltip.appendMarkdown(
-        `Lines: ${formatNumber(entry.total_composer_lines_accepted)} accepted\n\n`,
-      );
-      tooltip.appendMarkdown(
-        `Acceptance: ${formatPercent(entry.composer_line_acceptance_ratio)}\n\n`,
-      );
-      tooltip.appendMarkdown(`Favorite Model: ${entry.favorite_model}\n\n`);
-    } else {
-      tooltip.appendMarkdown('**Agent Lines of Code:** Unranked\n\n');
-    }
-
-    // Accepted Diffs
-    const acceptedDiffs = leaderboardData.acceptedDiffs;
-    if (acceptedDiffs.userEntry) {
-      const entry = acceptedDiffs.userEntry;
-      tooltip.appendMarkdown('**Accepted Diffs**\n\n');
-      tooltip.appendMarkdown(`🥇 Rank: **#${entry.rank}** of ${acceptedDiffs.totalUsers}\n\n`);
-      tooltip.appendMarkdown(`Diffs: ${formatNumber(entry.total_diff_accepts)} accepted\n\n`);
-      tooltip.appendMarkdown(`Favorite Model: ${entry.favorite_model}\n\n`);
-    } else {
-      tooltip.appendMarkdown('**Accepted Diffs:** Unranked\n\n');
-    }
-
-    // Tab Completions
-    const tabCompletions = leaderboardData.tabCompletions;
-    if (tabCompletions.userEntry) {
-      const entry = tabCompletions.userEntry;
-      tooltip.appendMarkdown('**Tab Completions**\n\n');
-      tooltip.appendMarkdown(`🥇 Rank: **#${entry.rank}** of ${tabCompletions.totalUsers}\n\n`);
-      tooltip.appendMarkdown(`Lines: ${formatNumber(entry.total_tab_lines_accepted)} accepted\n\n`);
-      tooltip.appendMarkdown(`Acceptance: ${formatPercent(entry.tab_line_acceptance_ratio)}\n\n`);
-      tooltip.appendMarkdown(`Favorite Model: ${entry.favorite_model}\n\n`);
-    } else {
-      tooltip.appendMarkdown('**Tab Completions:** Unranked\n\n');
-    }
+    appendLeaderboardSection(tooltip, leaderboardData);
   }
 
   // Footer with last updated time

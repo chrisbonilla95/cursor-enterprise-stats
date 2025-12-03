@@ -43,12 +43,13 @@ export interface IComposerLeaderboardEntry {
 }
 
 // Full leaderboard response
+// Note: Leaderboard sections may be omitted by API when user has 0 activity
 export interface ILeaderboardResponse {
-  tab_leaderboard: {
+  tab_leaderboard?: {
     data: ITabLeaderboardEntry[];
     total_users: number;
   };
-  composer_leaderboard: {
+  composer_leaderboard?: {
     data: IComposerLeaderboardEntry[];
     total_users: number;
   };
@@ -192,12 +193,12 @@ function formatDateForAPI(date: Date): string {
 }
 
 /**
- * Get date range for leaderboard (last 30 days)
+ * Get date range for leaderboard
  */
-function getLeaderboardDateRange(): { startDate: string; endDate: string } {
+function getLeaderboardDateRange(days: number): { startDate: string; endDate: string } {
   const endDate = new Date();
   const startDate = new Date();
-  startDate.setDate(startDate.getDate() - 30);
+  startDate.setDate(startDate.getDate() - days);
 
   return {
     startDate: formatDateForAPI(startDate),
@@ -241,11 +242,12 @@ async function fetchLeaderboardWithSort(
   teamId: number,
   userEmail: string,
   sortBy: LeaderboardSortBy,
+  days: number,
 ): Promise<ILeaderboardResponse> {
   try {
-    log(`[API] Fetching leaderboard (sortBy: ${sortBy})...`);
+    log(`[API] Fetching leaderboard (sortBy: ${sortBy}, days: ${days})...`);
 
-    const { startDate, endDate } = getLeaderboardDateRange();
+    const { startDate, endDate } = getLeaderboardDateRange(days);
     const params = new URLSearchParams({
       startDate,
       endDate,
@@ -262,9 +264,11 @@ async function fetchLeaderboardWithSort(
       },
     );
 
-    log(
-      `[API] Leaderboard fetched (${sortBy}): ${response.data.composer_leaderboard.total_users} users`,
-    );
+    const totalUsers =
+      response.data.composer_leaderboard?.total_users ??
+      response.data.tab_leaderboard?.total_users ??
+      0;
+    log(`[API] Leaderboard fetched (${sortBy}): ${totalUsers} users`);
 
     return response.data;
   } catch (error: unknown) {
@@ -283,19 +287,21 @@ async function fetchLeaderboardWithSort(
 
 /**
  * Find user entry in composer leaderboard by email
+ * Returns null if leaderboard section is missing (happens when user has 0 activity)
  */
 function findComposerEntry(
   data: ILeaderboardResponse,
   email: string,
 ): IComposerLeaderboardEntry | null {
-  return data.composer_leaderboard.data.find((entry) => entry.email === email) ?? null;
+  return data.composer_leaderboard?.data?.find((entry) => entry.email === email) ?? null;
 }
 
 /**
  * Find user entry in tab leaderboard by email
+ * Returns null if leaderboard section is missing (happens when user has 0 activity)
  */
 function findTabEntry(data: ILeaderboardResponse, email: string): ITabLeaderboardEntry | null {
-  return data.tab_leaderboard.data.find((entry) => entry.email === email) ?? null;
+  return data.tab_leaderboard?.data?.find((entry) => entry.email === email) ?? null;
 }
 
 /**
@@ -305,28 +311,29 @@ export async function fetchAllLeaderboards(
   token: string,
   teamId: number,
   userEmail: string,
+  days: number = 30,
 ): Promise<ILeaderboardData> {
-  log('[API] Fetching all leaderboards...');
+  log(`[API] Fetching all leaderboards (${days} days)...`);
 
   // Fetch all three leaderboards in parallel
   const [agentLinesData, acceptedDiffsData, tabCompletionsData] = await Promise.all([
-    fetchLeaderboardWithSort(token, teamId, userEmail, 'composer_lines'),
-    fetchLeaderboardWithSort(token, teamId, userEmail, 'composer_accepts'),
-    fetchLeaderboardWithSort(token, teamId, userEmail, 'tab_accepts'),
+    fetchLeaderboardWithSort(token, teamId, userEmail, 'composer_lines', days),
+    fetchLeaderboardWithSort(token, teamId, userEmail, 'composer_accepts', days),
+    fetchLeaderboardWithSort(token, teamId, userEmail, 'tab_accepts', days),
   ]);
 
   return {
     agentLines: {
       userEntry: findComposerEntry(agentLinesData, userEmail),
-      totalUsers: agentLinesData.composer_leaderboard.total_users,
+      totalUsers: agentLinesData.composer_leaderboard?.total_users ?? 0,
     },
     acceptedDiffs: {
       userEntry: findComposerEntry(acceptedDiffsData, userEmail),
-      totalUsers: acceptedDiffsData.composer_leaderboard.total_users,
+      totalUsers: acceptedDiffsData.composer_leaderboard?.total_users ?? 0,
     },
     tabCompletions: {
       userEntry: findTabEntry(tabCompletionsData, userEmail),
-      totalUsers: tabCompletionsData.tab_leaderboard.total_users,
+      totalUsers: tabCompletionsData.tab_leaderboard?.total_users ?? 0,
     },
   };
 }

@@ -27,8 +27,55 @@ let cachedUserInfo: IGetMeResponse | null = null;
 let cachedUsageData: IUsageSummaryResponse | null = null;
 let cachedLeaderboardData: ILeaderboardData | null = null;
 
-// Default refresh interval: 60 seconds
-const REFRESH_INTERVAL_MS = 60 * 1000;
+// Refresh intervals
+const REFRESH_INTERVAL_MS = 60 * 1000; // Normal: 60 seconds
+const FAST_RETRY_INTERVAL_MS = 1000; // Fast retry: 1 second
+const FAST_RETRY_DURATION_MS = 60 * 1000; // Fast retry for 60 seconds max
+
+// Fast retry state for "not signed in" errors
+let fastRetryStartTime: number | null = null;
+
+/**
+ * Start fast retry mode for "not signed in" errors
+ * Retries every second for up to 60 seconds, then reverts to normal interval
+ */
+function startFastRetry(): void {
+  const now = Date.now();
+
+  // Check if we've been in fast retry mode too long
+  if (fastRetryStartTime && now - fastRetryStartTime >= FAST_RETRY_DURATION_MS) {
+    log('[Refresh] Fast retry duration exceeded, reverting to normal interval');
+    fastRetryStartTime = null;
+    startRefreshInterval();
+    return;
+  }
+
+  // Start fast retry if not already started
+  if (!fastRetryStartTime) {
+    fastRetryStartTime = now;
+    log('[Refresh] Starting fast retry mode (1s intervals for 60s)');
+  }
+
+  // Clear existing interval and set fast retry
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+  }
+
+  refreshInterval = setInterval(() => {
+    void refreshStats();
+  }, FAST_RETRY_INTERVAL_MS);
+}
+
+/**
+ * Stop fast retry mode and revert to normal interval
+ */
+function stopFastRetry(): void {
+  if (fastRetryStartTime) {
+    log('[Refresh] Stopping fast retry mode, reverting to normal interval');
+    fastRetryStartTime = null;
+    startRefreshInterval();
+  }
+}
 
 /**
  * Refresh stats from the API
@@ -50,8 +97,12 @@ async function refreshStats(): Promise<void> {
 
     if (!token) {
       showError('Not signed in to Cursor');
+      startFastRetry();
       return;
     }
+
+    // Token found - stop fast retry if active
+    stopFastRetry();
 
     // Get user info (from cache or fetch)
     if (!cachedUserInfo) {
@@ -59,11 +110,16 @@ async function refreshStats(): Promise<void> {
       cachedUserInfo = await fetchUserInfo(token);
     }
 
+    // Check leaderboard settings
+    const config = vscode.workspace.getConfiguration('cursorEnterpriseStats');
+    const leaderboardEnabled = config.get<boolean>('enableLeaderboard') ?? true;
+    const leaderboardDays = config.get<number>('leaderboardDateRange') ?? 30;
+
     // Fetch usage summary and leaderboard data in parallel
     const [usageData, leaderboardData] = await Promise.all([
       fetchUsageSummary(token),
-      cachedUserInfo.isEnterpriseUser && cachedUserInfo.teamId
-        ? fetchAllLeaderboards(token, cachedUserInfo.teamId, cachedUserInfo.email)
+      leaderboardEnabled && cachedUserInfo.isEnterpriseUser && cachedUserInfo.teamId
+        ? fetchAllLeaderboards(token, cachedUserInfo.teamId, cachedUserInfo.email, leaderboardDays)
         : Promise.resolve(null),
     ]);
 
@@ -162,6 +218,18 @@ export function activate(context: vscode.ExtensionContext): void {
         if (cachedUsageData) {
           updateStatusBar(cachedUsageData, cachedLeaderboardData, cachedUserInfo);
         }
+      }
+      if (e.affectsConfiguration('cursorEnterpriseStats.enableLeaderboard')) {
+        log('[Config] Leaderboard setting changed, refreshing...');
+        // Clear cached leaderboard data and refresh
+        cachedLeaderboardData = null;
+        void refreshStats();
+      }
+      if (e.affectsConfiguration('cursorEnterpriseStats.leaderboardDateRange')) {
+        log('[Config] Leaderboard date range changed, refreshing...');
+        // Clear cached leaderboard data and refresh with new date range
+        cachedLeaderboardData = null;
+        void refreshStats();
       }
     });
 

@@ -2,7 +2,7 @@
   "name": "cursor-enterprise-stats",
   "displayName": "Cursor Enterprise Stats",
   "description": "A Cursor extension for monitoring enterprise usage.",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "publisher": "chrisbonilla95",
   "icon": "images/icon.png",
   "repository": {
@@ -73,6 +73,19 @@
             ],
             "default": "agentLines",
             "description": "Which leaderboard rank to display in the status bar.",
+            "scope": "window"
+          },
+          "cursorEnterpriseStats.enableLeaderboard": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable leaderboard stats in the tooltip and status bar rank display. Also controls whether Favorite Model is shown.",
+            "scope": "window"
+          },
+          "cursorEnterpriseStats.leaderboardDateRange": {
+            "type": "number",
+            "default": 30,
+            "minimum": 1,
+            "description": "Number of days to include in leaderboard stats. Note: Data is only available for users on Cursor v1.5+ (Late August 2025).",
             "scope": "window"
           }
         }
